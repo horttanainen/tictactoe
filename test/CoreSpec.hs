@@ -3,44 +3,7 @@ module CoreSpec where
 import Core
 import Test.Hspec
 
-rowOfNoughts :: [Cell]
-rowOfNoughts = ((flip Cell) (Just Nought)) <$> [0..2]
-
-rowOfCrosses :: [Cell]
-rowOfCrosses = ((flip Cell) (Just Cross)) <$> [0..2]
-
-emptyRow  :: [Cell]
-emptyRow = ((flip Cell) Nothing) <$> [0..2]
-
-oneNoughtTwoCrosses :: [Cell]
-oneNoughtTwoCrosses = head rowOfNoughts : (init rowOfCrosses)
-
-oneCrossTwoNoughts :: [Cell]
-oneCrossTwoNoughts = head rowOfCrosses : (init rowOfNoughts)
-
-twoCrossesOneNought :: [Cell]
-twoCrossesOneNought = take 2 rowOfCrosses ++ [(head rowOfNoughts)]
-
-twoNoughtsOneCross :: [Cell]
-twoNoughtsOneCross = take 2 rowOfNoughts ++ [(head rowOfCrosses)]
-
-noughtWinH :: Board
-noughtWinH = (((flip Cell) (Just Nought)) <$> [0..2]) 
-  ++ ((flip Cell Nothing) <$> [3..8])
-
-crossWinH :: Board
-crossWinH = (((flip Cell) (Just Cross)) <$> [0..2]) 
-  ++ ((flip Cell Nothing) <$> [3..8])
-
 spec = do
-  describe "parseB" $ do
-    it "parses a board from given string" $ do
-      parseB "OOOEEEEEE" `shouldBe` noughtWinH
-      parseB "XXXEEEEEE" `shouldBe` crossWinH
-      parseB "OOX" `shouldBe` twoNoughtsOneCross
-      parseB "XXO" `shouldBe` twoCrossesOneNought
-      parseB "XOO" `shouldBe` oneCrossTwoNoughts
-
   describe "rowColToCellPos" $ do
     it "should convert row and col to cell position" $ do
       rowColToCellPos 0 0 3 `shouldBe` 0
@@ -54,28 +17,35 @@ spec = do
 
   describe "checkForStrikeRow" $ do
     it "should return Just Nought for list of Just Noughts" $ do
-      checkForStrikeRow rowOfNoughts `shouldBe` Just Nought
+      checkForStrikeRow (parseB "OOO") `shouldBe` Just Nought
 
     it "should return Just Cross for list of Just Crosses" $ do
-      checkForStrikeRow rowOfCrosses `shouldBe` Just Cross
+      checkForStrikeRow (parseB "XXX") `shouldBe` Just Cross
       
     it "should return Nothing for everything else" $ do
-      checkForStrikeRow rowOfCrosses `shouldBe` Just Cross
-      checkForStrikeRow twoCrossesOneNought `shouldBe` Nothing
-      checkForStrikeRow twoNoughtsOneCross `shouldBe` Nothing
-      checkForStrikeRow oneCrossTwoNoughts `shouldBe` Nothing
-      checkForStrikeRow oneNoughtTwoCrosses `shouldBe` Nothing
+      checkForStrikeRow (parseB "OXO") `shouldBe` Nothing
+      checkForStrikeRow (parseB "OOX") `shouldBe` Nothing
+      checkForStrikeRow (parseB "EXX") `shouldBe` Nothing
+      checkForStrikeRow (parseB "XXE") `shouldBe` Nothing
 
   describe "checkForStrikeH" $ do
     it "should return the player who has a horizontal strike or empty" $ do
-      checkForStrikeH noughtWinH `shouldBe` Just Nought
-      checkForStrikeH crossWinH  `shouldBe` Just Cross
-      checkForStrikeH emptyBoard `shouldBe` Nothing
+      checkForStrikeH (parseB "OOOXXEXEE") `shouldBe` Just Nought
+      checkForStrikeH (parseB "OOXEEOXXX") `shouldBe` Just Cross
+      checkForStrikeH (parseB "EEEEEEEEE") `shouldBe` Nothing
+      checkForStrikeH (parseB "OOXXOOXXO") `shouldBe` Nothing
+
+  describe "checkForStrikeV" $ do
+    it "should return the player who has a vertical strike or empty" $ do
+      checkForStrikeV (parseB "OOOXXEXEE") `shouldBe` Nothing
+      checkForStrikeV (parseB "OOXEEOXXX") `shouldBe` Nothing
+      checkForStrikeV (parseB "OXOOXEOOX") `shouldBe` Just Nought
+      checkForStrikeV (parseB "XEEXOOXOE") `shouldBe` Just Cross
 
   describe "state" $ do
     it "should returns state of board from players pov" $ do
-      state noughtWinH Nought `shouldBe` Win
-      state crossWinH Nought `shouldBe` Loss
-      state noughtWinH Cross `shouldBe` Loss
-      state crossWinH Cross `shouldBe` Win
+      state (parseB "OOOXXEXEE") Nought `shouldBe` Win
+      state (parseB "XXXOOEOEE") Nought `shouldBe` Loss
+      state (parseB "OOOXXEXEE") Cross `shouldBe` Loss
+      state (parseB "XXXOOEOEE") Cross `shouldBe` Win
 

@@ -1,6 +1,7 @@
 module Core where
 
 import Data.List.Split (chunksOf)
+import Data.List (transpose)
 import Data.Maybe
 import Safe (headMay)
 import Control.Monad (join)
@@ -73,7 +74,7 @@ state b p
       boardNotFull = not boardIsFull
 
 checkForStrikeV :: Board -> Maybe Player
-checkForStrikeV = undefined
+checkForStrikeV = checkForStrikeH . concat . transpose . chunksOf boardWidth
 
 checkForStrikeH :: Board -> Maybe Player
 checkForStrikeH b =
