@@ -59,7 +59,6 @@ spec = do
       state (parseB "OXEXOXXEO") Cross `shouldBe` Loss
       state (parseB "EEXOXOXOO") Cross `shouldBe` Win
       state (parseB "OXOXOXXOX") Cross `shouldBe` Draw
-
       state (parseB "OOOXXEXEE") Nought `shouldBe` Win
       state (parseB "OOXEEOXXX") Nought `shouldBe` Loss
       state (parseB "EEEEEEEEE") Nought `shouldBe` Unfinished
@@ -69,3 +68,8 @@ spec = do
       state (parseB "OXEXOXXEO") Nought `shouldBe` Win
       state (parseB "EEXOXOXOO") Nought `shouldBe` Loss
       state (parseB "OXOXOXXOX") Nought `shouldBe` Draw
+
+  describe "legal" $ do
+    it "should return false if attempted move is not legal" $ do
+      legal (parseB "XEEEEEEEE") Cross 4 `shouldBe` False
+      legal (parseB "XXXOOEEEE") Nought 8 `shouldBe` False

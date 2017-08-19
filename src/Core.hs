@@ -49,19 +49,18 @@ parseB s =
 
 moveRowCol :: Board -> Move -> Row -> Col -> Board
 moveRowCol b m r c 
-  | legalMove b m cellPos = moveCellPos b m cellPos
+  | legal b m cellPos = moveCellPos b m cellPos
   | otherwise             = undefined
   where
     cellPos = rowColToCellPos r c boardWidth
 
-legalMove :: Board -> Move -> CellPos -> Bool
-legalMove b m pos = 
-  boardIsUnfinished && isPlayersTurn && cellIsVacant && isInsideBoard
+legal :: Board -> Move -> CellPos -> Bool
+legal b m pos = 
+  isPlayersTurn -- && cellIsVacant && isInsideBoard
     where
-      boardIsUnfinished   = state b m == Unfinished
-      isPlayersTurn       = turn b == m
-      cellIsVacant        = cellStateAt b pos == Nothing
-      isInsideBoard       = pos <= numberOfCells
+      isPlayersTurn       = turn b == Just m
+      --cellIsVacant        = cellStateAt b pos == Nothing
+      --isInsideBoard       = pos <= numberOfCells
 
 state :: Board -> Player -> Result
 state b p 
@@ -101,8 +100,16 @@ checkForStrikeRow row
     where 
       rowOfMoves = map cellState row
 
-turn :: Board -> Move
-turn = undefined
+turn :: Board -> Maybe Player
+turn b
+  | boardState == Unfinished  = if even nMoves then Just Cross else Just Nought
+  | otherwise                 = Nothing
+    where
+      boardState = state b Cross
+      nMoves = numberOfMoves b
+
+numberOfMoves :: Board -> Int
+numberOfMoves = length . (filter (isJust . cellState))
 
 cellStateAt :: Board -> CellPos -> CellState
 cellStateAt b pos = undefined
