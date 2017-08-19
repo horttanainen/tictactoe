@@ -50,8 +50,22 @@ spec = do
 
   describe "state" $ do
     it "should returns state of board from players pov" $ do
-      state (parseB "OOOXXEXEE") Nought `shouldBe` Win
-      state (parseB "XXXOOEOEE") Nought `shouldBe` Loss
       state (parseB "OOOXXEXEE") Cross `shouldBe` Loss
-      state (parseB "XXXOOEOEE") Cross `shouldBe` Win
+      state (parseB "OOXEEOXXX") Cross `shouldBe` Win
+      state (parseB "EEEEEEEEE") Cross `shouldBe` Unfinished
+      state (parseB "OOXXOOXXO") Cross `shouldBe` Loss
+      state (parseB "OXOOXEOOX") Cross `shouldBe` Loss
+      state (parseB "XEEXOOXOE") Cross `shouldBe` Win
+      state (parseB "OXEXOXXEO") Cross `shouldBe` Loss
+      state (parseB "EEXOXOXOO") Cross `shouldBe` Win
+      state (parseB "OXOXOXXOX") Cross `shouldBe` Draw
 
+      state (parseB "OOOXXEXEE") Nought `shouldBe` Win
+      state (parseB "OOXEEOXXX") Nought `shouldBe` Loss
+      state (parseB "EEEEEEEEE") Nought `shouldBe` Unfinished
+      state (parseB "OOXXOOXXO") Nought `shouldBe` Win
+      state (parseB "OXOOXEOOX") Nought `shouldBe` Win
+      state (parseB "XEEXOOXOE") Nought `shouldBe` Loss
+      state (parseB "OXEXOXXEO") Nought `shouldBe` Win
+      state (parseB "EEXOXOXOO") Nought `shouldBe` Loss
+      state (parseB "OXOXOXXOX") Nought `shouldBe` Draw

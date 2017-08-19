@@ -65,13 +65,19 @@ legalMove b m pos =
 
 state :: Board -> Player -> Result
 state b p 
-  | rowStrike == Just p             = Win
-  | rowStrike == Just (opponent p)  = Loss 
-  | otherwise                       = Error
+  | rowStrike == Just p               = Win
+  | rowStrike == Just (opponent p)    = Loss 
+  | columnStrike == Just p            = Win
+  | columnStrike == Just (opponent p) = Loss
+  | diagStrike == Just p              = Win
+  | diagStrike == Just (opponent p)   = Loss
+  | boardIsFull                       = Draw
+  | otherwise                         = Unfinished
     where 
       rowStrike = checkForStrikeH b
+      columnStrike = checkForStrikeV b
+      diagStrike = checkForStrikeD b
       boardIsFull = all (isJust . cellState) b
-      boardNotFull = not boardIsFull
 
 checkForStrikeD :: Board -> Maybe Player
 checkForStrikeD b = checkForStrikeH $ diag1 ++ diag2
