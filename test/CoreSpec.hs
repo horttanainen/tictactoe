@@ -42,6 +42,12 @@ spec = do
       checkForStrikeV (parseB "OXOOXEOOX") `shouldBe` Just Nought
       checkForStrikeV (parseB "XEEXOOXOE") `shouldBe` Just Cross
 
+  describe "checkForStrikeD" $ do
+    it "should return the player who has a diagonal strike or empty" $ do
+      checkForStrikeD (parseB "OXEXOXXEO") `shouldBe` Just Nought
+      checkForStrikeD (parseB "EEXOXOXOO") `shouldBe` Just Cross
+      checkForStrikeD (parseB "OOXEEOXXX") `shouldBe` Nothing
+
   describe "state" $ do
     it "should returns state of board from players pov" $ do
       state (parseB "OOOXXEXEE") Nought `shouldBe` Win

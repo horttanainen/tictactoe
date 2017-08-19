@@ -3,8 +3,8 @@ module Core where
 import Data.List.Split (chunksOf)
 import Data.List (transpose)
 import Data.Maybe
-import Safe (headMay)
 import Control.Monad (join)
+import Safe (headMay)
 
 data Move = Nought | Cross deriving (Eq, Ord)
 
@@ -73,15 +73,20 @@ state b p
       boardIsFull = all (isJust . cellState) b
       boardNotFull = not boardIsFull
 
+checkForStrikeD :: Board -> Maybe Player
+checkForStrikeD b = checkForStrikeH $ diag1 ++ diag2
+  where
+    rows  = boardToRows b
+    diag1 = zipWith (!!) rows [0..]
+    diag2 = zipWith (!!) (reverse <$> rows) [0..]
+
 checkForStrikeV :: Board -> Maybe Player
-checkForStrikeV = checkForStrikeH . concat . transpose . chunksOf boardWidth
+checkForStrikeV = checkForStrikeH . concat . transpose . boardToRows
 
 checkForStrikeH :: Board -> Maybe Player
 checkForStrikeH b =
-  let strikes = filter isJust $ checkForStrikeRow <$> rows
+  let strikes = filter isJust $ checkForStrikeRow <$> boardToRows b
   in join $ headMay strikes
-    where 
-      rows = chunksOf boardWidth b
 
 checkForStrikeRow :: [Cell] -> Maybe Player
 checkForStrikeRow row
@@ -108,6 +113,9 @@ result = undefined
 opponent :: Player -> Player
 opponent Nought = Cross
 opponent Cross  = Nought
+
+boardToRows :: Board -> [[Cell]]
+boardToRows = chunksOf boardWidth
 
 emptyBoard :: Board
 emptyBoard = flip Cell Nothing <$> [0..8]
