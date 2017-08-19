@@ -50,17 +50,17 @@ parseB s =
 moveRowCol :: Board -> Move -> Row -> Col -> Board
 moveRowCol b m r c 
   | legal b m cellPos = moveCellPos b m cellPos
-  | otherwise             = undefined
+  | otherwise         = undefined
   where
     cellPos = rowColToCellPos r c boardWidth
 
 legal :: Board -> Move -> CellPos -> Bool
 legal b m pos = 
-  isPlayersTurn -- && cellIsVacant && isInsideBoard
+  isInsideBoard && isPlayersTurn && cellIsVacant
     where
       isPlayersTurn       = turn b == Just m
-      --cellIsVacant        = cellStateAt b pos == Nothing
-      --isInsideBoard       = pos <= numberOfCells
+      cellIsVacant        = cellStateAt b pos == Nothing
+      isInsideBoard       = pos >= 0 && pos < length b
 
 state :: Board -> Player -> Result
 state b p 
@@ -112,16 +112,20 @@ numberOfMoves :: Board -> Int
 numberOfMoves = length . (filter (isJust . cellState))
 
 cellStateAt :: Board -> CellPos -> CellState
-cellStateAt b pos = undefined
+cellStateAt b pos = cellState specifiedCell
+  where (_,(specifiedCell:_)) = splitAt pos b
 
 rowColToCellPos :: Row -> Col -> Int -> CellPos
 rowColToCellPos r c w = ( r * w ) + c
 
 moveCellPos :: Board -> Move -> CellPos -> Board
-moveCellPos b m pos = undefined
+moveCellPos b m pos = before ++ ( (Cell pos (Just m)) : after)
+  where (before,(_:after)) = splitAt pos b
 
 result :: Board -> Move -> CellPos -> Result
-result = undefined
+result b m pos
+  | legal b m pos = state (moveCellPos b m pos) m
+  | otherwise     = Error
 
 opponent :: Player -> Player
 opponent Nought = Cross
