@@ -3,6 +3,14 @@ module CoreSpec where
 import Core
 import Test.Hspec
 
+parseB :: String -> Board
+parseB s = 
+  (uncurry Cell) <$> zip [0..] (map parseB' s)
+    where 
+      parseB' 'O' = Just Nought
+      parseB' 'X' = Just Cross
+      parseB' _   = Nothing
+
 spec = do
   describe "rowColToCellPos" $ do
     it "should convert row and col to cell position" $ do
