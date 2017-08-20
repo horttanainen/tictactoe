@@ -1,6 +1,6 @@
 module Main where
 
-import Core
+import TicTacToe.HumanInterface
 
 main :: IO ()
 main = putStrLn "Hello"

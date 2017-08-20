@@ -38,3 +38,19 @@ opponent :: Player -> Player
 opponent Nought = Cross
 opponent Cross  = Nought
 
+legal :: Board -> Move -> CellPos -> Bool
+legal b m pos = 
+  isInsideBoard && isPlayersTurn && cellIsVacant
+    where
+      isPlayersTurn       = turn b == Just m
+      cellIsVacant        = cellStateAt b pos == Nothing
+      isInsideBoard       = pos >= 0 && pos < length b
+
+turn :: Board -> Maybe Player
+turn b
+  | boardState == Unfinished  = if even nMoves then Just Cross else Just Nought
+  | otherwise                 = Nothing
+    where
+      boardState = state b Cross
+      nMoves = numberOfMoves b
+

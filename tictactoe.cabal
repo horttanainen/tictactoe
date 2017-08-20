@@ -1,4 +1,4 @@
-name:                tictactoe2
+name:                tictactoe
 version:             0.1.0.0
 -- synopsis:
 -- description:
@@ -15,26 +15,30 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Core
+  exposed-modules:     TicTacToe.Core
+                     , TicTacToe.HumanInterface
+                     , TicTacToe.Domain
+                     , TicTacToe.Core.Internals
+                     , TicTacToe.HumanInterface.Internals
   build-depends:       base >= 4.7 && < 5
                      , mtl
                      , split
                      , safe
   default-language:    Haskell2010
 
-executable tictactoe2-exe
+executable tictactoe-exe
   hs-source-dirs:      app
   main-is:             Main.hs
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   build-depends:       base
-                     , tictactoe2
+                     , tictactoe
   default-language:    Haskell2010
 
 test-suite hspec
   main-is: Spec.hs
   type: exitcode-stdio-1.0
   build-depends: base
-               , tictactoe2
+               , tictactoe
                , hspec
                , QuickCheck
   hs-source-dirs: test

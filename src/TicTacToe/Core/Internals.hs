@@ -16,22 +16,6 @@ moveNoCheck :: Board -> Move -> CellPos -> Board
 moveNoCheck b m pos = before ++ ( (Cell pos (Just m)) : after)
   where (before,(_:after)) = splitAt pos b
 
-legal :: Board -> Move -> CellPos -> Bool
-legal b m pos = 
-  isInsideBoard && isPlayersTurn && cellIsVacant
-    where
-      isPlayersTurn       = turn b == Just m
-      cellIsVacant        = cellStateAt b pos == Nothing
-      isInsideBoard       = pos >= 0 && pos < length b
-
-turn :: Board -> Maybe Player
-turn b
-  | boardState == Unfinished  = if even nMoves then Just Cross else Just Nought
-  | otherwise                 = Nothing
-    where
-      boardState = state b Cross
-      nMoves = numberOfMoves b
-
 checkForStrikeD :: Board -> Maybe Player
 checkForStrikeD b = checkForStrikeH $ diag1 ++ diag2
   where
