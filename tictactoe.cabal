@@ -18,6 +18,7 @@ library
   exposed-modules:     TicTacToe.Core
                      , TicTacToe.HumanInterface
                      , TicTacToe.Domain
+                     , TicTacToe.AiInterface
                      , TicTacToe.Core.Internals
                      , TicTacToe.HumanInterface.Internals
   build-depends:       base >= 4.7 && < 5

@@ -13,8 +13,8 @@ import Data.Maybe
 import TicTacToe.Domain
 
 moveNoCheck :: Board -> Move -> CellPos -> Board
-moveNoCheck b m pos = before ++ ( (Cell pos (Just m)) : after)
-  where (before,(_:after)) = splitAt pos b
+moveNoCheck b m pos = before ++ ( Cell pos (Just m) : after)
+  where (before, _ : after) = splitAt pos b
 
 checkForStrikeD :: Board -> Maybe Player
 checkForStrikeD b = checkForStrikeH $ diag1 ++ diag2
@@ -33,7 +33,7 @@ checkForStrikeH b =
 
 checkForStrikeRow :: [Cell] -> Maybe Player
 checkForStrikeRow row
-  | and $ ( == head rowOfMoves) <$> (tail rowOfMoves) = head rowOfMoves
+  | and $ ( == head rowOfMoves) <$> tail rowOfMoves = head rowOfMoves
   | otherwise                                         = Nothing
     where 
       rowOfMoves = map cellState row
@@ -42,8 +42,8 @@ boardToRows :: Board -> [[Cell]]
 boardToRows = chunksOf 3
 
 numberOfMoves :: Board -> Int
-numberOfMoves = length . (filter (isJust . cellState))
+numberOfMoves = length . filter (isJust . cellState)
 
 cellStateAt :: Board -> CellPos -> CellState
 cellStateAt b pos = cellState specifiedCell
-  where (_,(specifiedCell:_)) = splitAt pos b
+  where (_, specifiedCell : _) = splitAt pos b

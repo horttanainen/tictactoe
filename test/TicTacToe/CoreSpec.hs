@@ -6,12 +6,12 @@ import Test.Hspec
 import TicTacToe.TestCommon
 
 spec = do
-  describe "opponent" $ do
+  describe "opponent" $
     it "should return the opponent for given player" $ do
       opponent Nought `shouldBe` Cross
       opponent Cross `shouldBe` Nought
 
-  describe "state" $ do
+  describe "state" $
     it "should returns state of board from players pov" $ do
       state (parseB "OOOXXEXEE") Cross `shouldBe` Loss
       state (parseB "OOXEEOXXX") Cross `shouldBe` Win

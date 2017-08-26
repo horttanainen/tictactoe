@@ -43,7 +43,7 @@ legal b m pos =
   isInsideBoard && isPlayersTurn && cellIsVacant
     where
       isPlayersTurn       = turn b == Just m
-      cellIsVacant        = cellStateAt b pos == Nothing
+      cellIsVacant        = isNothing $ cellStateAt b pos
       isInsideBoard       = pos >= 0 && pos < length b
 
 turn :: Board -> Maybe Player
