@@ -25,6 +25,8 @@ library
                      , mtl
                      , split
                      , safe
+                     , hmatrix
+                     , random
   default-language:    Haskell2010
 
 executable tictactoe-exe

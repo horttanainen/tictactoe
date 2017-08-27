@@ -41,7 +41,7 @@ spec = do
       result (parseB "EEEEEEEEE") Cross 9 `shouldBe` Error
       result (parseB "EEEEEEEEE") Cross (-1) `shouldBe` Error
 
-    it "should return the result og board after the move from players pov" $ do
+    it "should return the result of board after the move from players pov" $ do
       result (parseB "EOOXXEXEE") Nought 0 `shouldBe` Win
       result (parseB "OOXEEOXEX") Cross 7 `shouldBe` Win
       result (parseB "EEEEEEEEE") Cross 6 `shouldBe` Unfinished
@@ -59,3 +59,18 @@ spec = do
     it "should return true if attempted move is legal" $ do
       legal (parseB "EEEEEEEEE") Cross 0 `shouldBe` True
       legal (parseB "XOXXEXOOE") Nought 4 `shouldBe` True
+
+  describe "move" $ do
+    it "should return Nothing if illegal move" $ do
+      move (parseB "XEEEEEEEE") Cross 4 `shouldBe` Nothing
+      move (parseB "EEEEEEEEE") Nought 4 `shouldBe` Nothing
+      move (parseB "XXXOOEEEE") Nought 8 `shouldBe` Nothing
+      move (parseB "XEEEEEEEE") Nought 0 `shouldBe` Nothing
+      move (parseB "EEEEEEEEE") Cross 9 `shouldBe` Nothing
+      move (parseB "EEEEEEEEE") Cross (-1) `shouldBe` Nothing
+
+    it "should return updated board if move was legal" $ do
+      move (parseB "EEEEEEEEE") Cross 0 `shouldBe` Just (parseB "XEEEEEEEE")
+      move (parseB "XOXXEXOOE") Nought 4 `shouldBe` Just (parseB "XOXXOXOOE")
+      
+      

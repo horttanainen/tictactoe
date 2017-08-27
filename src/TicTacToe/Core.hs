@@ -8,10 +8,10 @@ import Data.Maybe
 import TicTacToe.Core.Internals
 import TicTacToe.Domain
 
-move :: Board -> Move -> CellPos -> Board
+move :: Board -> Move -> CellPos -> Maybe Board
 move b m pos 
-  | legal b m pos = moveNoCheck b m pos
-  | otherwise         = undefined
+  | legal b m pos = Just $ moveNoCheck b m pos
+  | otherwise     = Nothing
 
 state :: Board -> Player -> Result
 state b p 

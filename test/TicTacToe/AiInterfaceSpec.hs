@@ -5,6 +5,6 @@ import TicTacToe.AiInterface
 import Test.Hspec
 
 spec =
-  describe "tmp" $
-    it "should" $
+  describe "newEnvironment" $
+    it "should return an empty state" $
       True `shouldBe` False

@@ -7,7 +7,7 @@ import TicTacToe.HumanInterface.Internals
 import TicTacToe.Domain
 import TicTacToe.Core as C
 
-move :: Board -> Move -> Row -> Col -> Board
+move :: Board -> Move -> Row -> Col -> Maybe Board
 move b m r c =
   C.move b m cellPos
     where cellPos = rowColToCellPos r c
