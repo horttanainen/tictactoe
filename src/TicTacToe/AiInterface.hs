@@ -3,9 +3,10 @@ module TicTacToe.AiInterface where
 import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Reader
-import System.Random (StdGen)
+import System.Random (StdGen, split, randomR)
+import System.Random.Shuffle (shuffle')
 
-import Numeric.LinearAlgebra.Data (Matrix)
+import Numeric.LinearAlgebra.Data (Matrix, maxIndex)
 
 import TicTacToe.Core (move, result)
 import TicTacToe.Domain (Result(..), Board, Move, CellPos)
@@ -20,7 +21,7 @@ data GameState = GameState {
 }
 
 type BoardMatrix = Matrix Int
-type Action = Matrix Int
+type Action = (Int, Int)
 
 step :: (Player a) => BoardMatrix -> Action -> a -> GameState
 step m action opponent =
@@ -97,11 +98,12 @@ type Output = Matrix Double
 type Reward = Int
 
 data NeuralNetwork = NN {
+  epsilon :: Double,
   input     :: Input,
   w1        :: W1,
   w2        :: W2,
   output    :: Output,
-  batch     :: [BatchData],
+  buffer    :: [BufferData],
   adamS     :: AdamState,
   randomGen :: StdGen
 }
@@ -119,7 +121,6 @@ data AdamState = Adam {
 }
 
 data HyperParameters = Hyp {
-  epsilon :: Double,
   epsilonDecay :: Double,
   epsilonMin :: Double,
   gamma :: Double,
@@ -133,7 +134,7 @@ data HyperParameters = Hyp {
   adamP :: AdamParameters
 }
 
-data BatchData = BatchD {
+data BufferData = BufferD {
   state     :: Input,
   action    :: Action,
   reward    :: Reward,
@@ -144,23 +145,40 @@ data BatchData = BatchD {
 replay ::  ReaderT HyperParameters (State NeuralNetwork) ()
 replay = do
   sample <- randomSample
-  mapM_ replay' sample
-    where
-      replay' (BatchD state action reward nextState done) = do
-        trgt <- target reward state nextState
-        fit state trgt
-        s@Hyp{epsilon = eps, epsilonMin = epsMin, epsilonDecay = epsD} <- ask
-        lift $ put s{epsilon = eps * epsD}
-        --when (eps > epsMin) $ put s{epsilon = eps * epsD}
+  forM_ sample (\(BufferD state action reward nextState done) -> do
+      trgt <- target reward state nextState
+      fit state trgt
+      Hyp{epsilonMin = epsMin, epsilonDecay = epsD} <- ask
+      s@NN{epsilon = eps} <- get
+      when (eps > epsMin) $ put s{epsilon = eps * epsD})
 
-randomSample :: ReaderT HyperParameters (State NeuralNetwork) [BatchData]
-randomSample = undefined
-
-remember :: BatchData -> State NeuralNetwork ()
-remember = undefined
+randomSample :: ReaderT HyperParameters (State NeuralNetwork) [BufferData]
+randomSample = do
+  s@NN{ buffer=buffer, randomGen=gen }  <- get
+  Hyp{ batchSize=bSize }                <- ask
+  let 
+    shuffledBuffer  = shuffle' buffer (length buffer) gen
+    (gen', _)       = split gen
+  put s{ randomGen=gen' }
+  return $ take bSize shuffledBuffer
+    
+act :: ReaderT HyperParameters (State NeuralNetwork) Action
+act = do
+  s@NN{ epsilon=eps, randomGen=gen }  <- get
+  let (rNumber, gen') = randomR (0, 1) gen :: (Double, StdGen)
+  put s{randomGen=gen'}
+  if rNumber <= eps
+    then randomAction
+    else maxIndex <$> predict
 
 randomAction :: ReaderT HyperParameters (State NeuralNetwork) Action
 randomAction = undefined
+
+predict :: ReaderT HyperParameters (State NeuralNetwork) Output
+predict = undefined
+
+remember :: BufferData -> State NeuralNetwork ()
+remember = undefined
 
 initHyp :: HyperParameters
 initHyp = undefined
@@ -175,11 +193,7 @@ activator :: (Num a) => a -> a
 activator = undefined
 
 target :: Reward -> Input -> Input -> ReaderT HyperParameters (State NeuralNetwork) Output
-
 target = undefined
-
-predict :: State NeuralNetwork Output
-predict = undefined
 
 fit :: Input -> output -> ReaderT HyperParameters (State NeuralNetwork) ()
 fit = undefined
@@ -187,5 +201,3 @@ fit = undefined
 adam :: ReaderT HyperParameters (State NeuralNetwork) ()
 adam = undefined
 
-act :: BoardMatrix -> ReaderT HyperParameters (State NeuralNetwork) Action
-act = undefined
