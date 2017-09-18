@@ -1,15 +1,18 @@
+{-# LANGUAGE MonomorphismRestriction #-}
+
 module TicTacToe.AiInterface where
 
 import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Reader
-import System.Random (StdGen, split, randomR)
+import System.Random (StdGen, split, randomR, Random)
 import System.Random.Shuffle (shuffle')
 
-import Numeric.LinearAlgebra.Data (Matrix, maxIndex)
+import Numeric.LinearAlgebra.Data
 
 import TicTacToe.Core (move, result)
 import TicTacToe.Domain (Result(..), Board, Move, CellPos)
+import TicTacToe.HumanInterface.Internals (rowColToCellPos)
 
 class Player a where
   predictedAction :: BoardMatrix -> a -> Action
@@ -20,7 +23,7 @@ data GameState = GameState {
   board :: BoardMatrix
 }
 
-type BoardMatrix = Matrix Int
+type BoardMatrix = Matrix Z
 type Action = (Int, Int)
 
 step :: (Player a) => BoardMatrix -> Action -> a -> GameState
@@ -90,10 +93,10 @@ unfinished m a = undefined
 
 -- NN stuff
 
-type Input  = Matrix Int
-type W1     = Matrix Double
-type W2     = Matrix Double
-type Output = Matrix Double
+type Input  = Matrix Z
+type W1     = Matrix R
+type W2     = Matrix R
+type Output = Matrix R
 
 type Reward = Int
 
@@ -121,6 +124,7 @@ data AdamState = Adam {
 }
 
 data HyperParameters = Hyp {
+  player  :: Move,
   epsilonDecay :: Double,
   epsilonMin :: Double,
   gamma :: Double,
@@ -129,7 +133,6 @@ data HyperParameters = Hyp {
   episodes :: Int,
   batchSize :: Int,
   bufferSize :: Int,
-  actionSize :: Int,
   stateSize :: Int,
   adamP :: AdamParameters
 }
@@ -142,7 +145,9 @@ data BufferData = BufferD {
   done      :: Bool
 }
 
-replay ::  ReaderT HyperParameters (State NeuralNetwork) ()
+type StatePlusParams = ReaderT HyperParameters (State NeuralNetwork)
+
+replay ::  StatePlusParams ()
 replay = do
   sample <- randomSample
   forM_ sample (\(BufferD state action reward nextState done) -> do
@@ -152,29 +157,54 @@ replay = do
       s@NN{epsilon = eps} <- get
       when (eps > epsMin) $ put s{epsilon = eps * epsD})
 
-randomSample :: ReaderT HyperParameters (State NeuralNetwork) [BufferData]
+randomSample :: StatePlusParams [BufferData]
 randomSample = do
   s@NN{ buffer=buffer, randomGen=gen }  <- get
   Hyp{ batchSize=bSize }                <- ask
-  let 
-    shuffledBuffer  = shuffle' buffer (length buffer) gen
-    (gen', _)       = split gen
+  randomSample' bSize buffer
+
+randomSample' :: Int -> [a] -> StatePlusParams [a]
+randomSample' n xs =
+  take n <$> randomShuffle' xs
+
+randomShuffle' :: [a] -> StatePlusParams [a]
+randomShuffle' xs = do
+  s@NN{ randomGen=gen }  <- get
+  let shuffled  = shuffle' xs (length xs) gen
+      (gen', _) = split gen
   put s{ randomGen=gen' }
-  return $ take bSize shuffledBuffer
+  return shuffled
+
+randomElement :: [a] -> StatePlusParams a
+randomElement xs =
+  head <$> randomShuffle' xs
     
-act :: ReaderT HyperParameters (State NeuralNetwork) Action
+act :: StatePlusParams Action
 act = do
-  s@NN{ epsilon=eps, randomGen=gen }  <- get
-  let (rNumber, gen') = randomR (0, 1) gen :: (Double, StdGen)
-  put s{randomGen=gen'}
+  s@NN{ epsilon=eps }  <- get
+  rNumber <- randomNumber (0,1) :: StatePlusParams Double
   if rNumber <= eps
     then randomAction
     else maxIndex <$> predict
 
-randomAction :: ReaderT HyperParameters (State NeuralNetwork) Action
-randomAction = undefined
+randomNumber :: (Random a) => (a, a) -> StatePlusParams a
+randomNumber (beg, end) = do
+  s@NN{ randomGen=gen }  <- get
+  let (rNumber, gen') = randomR (beg, end) gen
+  put s{randomGen=gen'}
+  return rNumber
 
-predict :: ReaderT HyperParameters (State NeuralNetwork) Output
+randomAction :: StatePlusParams Action
+randomAction = do
+  choices <- legalActions
+  head <$> randomSample' 1 choices
+
+legalActions :: StatePlusParams [Action]
+legalActions = do
+  s@NN{ input=input }  <- get
+  return $ find (==0) input
+
+predict :: StatePlusParams Output
 predict = undefined
 
 remember :: BufferData -> State NeuralNetwork ()
@@ -186,18 +216,18 @@ initHyp = undefined
 initNN :: Reader HyperParameters NeuralNetwork
 initNN = undefined
 
-forwardPropagation :: ReaderT HyperParameters (State NeuralNetwork) ()
+forwardPropagation :: StatePlusParams ()
 forwardPropagation = undefined
 
 activator :: (Num a) => a -> a
 activator = undefined
 
-target :: Reward -> Input -> Input -> ReaderT HyperParameters (State NeuralNetwork) Output
+target :: Reward -> Input -> Input -> StatePlusParams Output
 target = undefined
 
-fit :: Input -> output -> ReaderT HyperParameters (State NeuralNetwork) ()
+fit :: Input -> output -> StatePlusParams ()
 fit = undefined
 
-adam :: ReaderT HyperParameters (State NeuralNetwork) ()
+adam :: StatePlusParams ()
 adam = undefined
 
