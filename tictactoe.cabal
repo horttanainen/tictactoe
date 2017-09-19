@@ -29,6 +29,18 @@ library
                      , random
                      , random-shuffle
   default-language:    Haskell2010
+  ghc-options:
+    -fwarn-tabs
+    -fwarn-unused-imports
+    -fwarn-name-shadowing
+    -fwarn-incomplete-uni-patterns
+    -fwarn-incomplete-patterns
+    -fwarn-overlapping-patterns
+    -fwarn-incomplete-record-updates
+    -fwarn-missing-signatures
+    -fwarn-monomorphism-restriction
+    -fwarn-orphans
+    -fforce-recomp
 
 executable tictactoe-exe
   hs-source-dirs:      app
