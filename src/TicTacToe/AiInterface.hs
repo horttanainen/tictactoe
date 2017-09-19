@@ -6,14 +6,13 @@ import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Reader
 import Control.Exception.Base (assert)
-import System.Random (StdGen, split, randomR, Random, RandomGen)
+import System.Random (StdGen, split, randomR, Random)
 import System.Random.Shuffle (shuffle')
 
 import Numeric.LinearAlgebra.Data
 
 import TicTacToe.Core (move, result)
 import TicTacToe.Domain (Result(..), Board, Move, CellPos)
-import TicTacToe.HumanInterface.Internals (rowColToCellPos)
 
 class Player a where
   predictedAction :: BoardMatrix -> a -> Action
@@ -96,6 +95,7 @@ type Input  = Matrix Z
 type W1     = Matrix R
 type W2     = Matrix R
 type Output = Matrix R
+
 
 type Reward = Int
 

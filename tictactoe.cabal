@@ -32,7 +32,6 @@ library
   ghc-options:
     -fwarn-tabs
     -fwarn-unused-imports
-    -fwarn-name-shadowing
     -fwarn-incomplete-uni-patterns
     -fwarn-incomplete-patterns
     -fwarn-overlapping-patterns
