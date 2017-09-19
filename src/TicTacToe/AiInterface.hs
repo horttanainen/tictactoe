@@ -1,11 +1,12 @@
-{-# LANGUAGE MonomorphismRestriction #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module TicTacToe.AiInterface where
 
 import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Reader
-import System.Random (StdGen, split, randomR, Random)
+import Control.Exception.Base (assert)
+import System.Random (StdGen, split, randomR, Random, RandomGen)
 import System.Random.Shuffle (shuffle')
 
 import Numeric.LinearAlgebra.Data
@@ -36,19 +37,17 @@ step m action opponent =
 
 opponentMoveToState :: (Player a) => BoardMatrix -> a -> GameState
 opponentMoveToState m opponent =
-  let
-    action = predictedAction m opponent
+  let pAction = predictedAction m opponent
   in
-    case aiResult m action of
+    case aiResult m pAction of
       Win         -> loss
       Draw        -> draw
-      Unfinished  -> unfinished m action
+      Unfinished  -> unfinished m pAction
 
 aiMove :: BoardMatrix -> Action -> Maybe BoardMatrix
 aiMove matrix action =
-  let 
-    board           = matrixToBoard matrix
-    (pl, cellPos)   = actionToPlayerCellPos action
+  let board           = matrixToBoard matrix
+      (pl, cellPos)   = actionToPlayerCellPos action
   in
     case move board pl cellPos of
       Just b  -> Just $ boardToMatrix b
@@ -62,34 +61,34 @@ aiResult matrix action =
     (pl, cellPos)   = actionToPlayerCellPos action
 
 actionToPlayerCellPos :: Action -> (Move, CellPos)
-actionToPlayerCellPos = undefined
+actionToPlayerCellPos = assert False undefined
 
 matrixToBoard :: BoardMatrix -> Board
-matrixToBoard = undefined
+matrixToBoard = assert False undefined
 
 boardToMatrix :: Board -> BoardMatrix
-boardToMatrix = undefined
+boardToMatrix = assert False undefined
 
 matrixToState :: BoardMatrix -> GameState
-matrixToState = undefined
+matrixToState = assert False undefined
 
 emptyGameState :: GameState
-emptyGameState = undefined
+emptyGameState = assert False undefined
 
 err :: GameState
-err = undefined
+err = assert False undefined
 
 loss :: GameState
-loss = undefined
+loss = assert False undefined
 
 win :: GameState
-win = undefined
+win = assert False undefined
 
 draw :: GameState
-draw = undefined
+draw = assert False undefined
 
 unfinished :: BoardMatrix -> Action -> GameState
-unfinished m a = undefined
+unfinished m a = assert False undefined
 
 -- NN stuff
 
@@ -124,17 +123,17 @@ data AdamState = Adam {
 }
 
 data HyperParameters = Hyp {
-  player  :: Move,
-  epsilonDecay :: Double,
-  epsilonMin :: Double,
-  gamma :: Double,
-  learningRate :: Double,
+  player            :: Move,
+  epsilonDecay      :: Double,
+  epsilonMin        :: Double,
+  gamma             :: Double,
+  learningRate      :: Double,
   learningRateDecay :: Double,
-  episodes :: Int,
-  batchSize :: Int,
-  bufferSize :: Int,
-  stateSize :: Int,
-  adamP :: AdamParameters
+  episodes          :: Int,
+  batchSize         :: Int,
+  bufferSize        :: Int,
+  stateSize         :: Int,
+  adamP             :: AdamParameters
 }
 
 data BufferData = BufferD {
@@ -149,26 +148,21 @@ type StatePlusParams = ReaderT HyperParameters (State NeuralNetwork)
 
 replay ::  StatePlusParams ()
 replay = do
-  sample <- randomSample
+  Hyp{epsilonMin = epsMin, epsilonDecay = epsD, batchSize=bSize} <- ask
+  NN{ buffer=buffer } <- get
+  sample <- randomSample bSize buffer
   forM_ sample (\(BufferD state action reward nextState done) -> do
       trgt <- target reward state nextState
       fit state trgt
-      Hyp{epsilonMin = epsMin, epsilonDecay = epsD} <- ask
       s@NN{epsilon = eps} <- get
       when (eps > epsMin) $ put s{epsilon = eps * epsD})
 
-randomSample :: StatePlusParams [BufferData]
-randomSample = do
-  s@NN{ buffer=buffer, randomGen=gen }  <- get
-  Hyp{ batchSize=bSize }                <- ask
-  randomSample' bSize buffer
+randomSample :: Int -> [a] -> StatePlusParams [a]
+randomSample n xs =
+  take n <$> randomShuffle xs
 
-randomSample' :: Int -> [a] -> StatePlusParams [a]
-randomSample' n xs =
-  take n <$> randomShuffle' xs
-
-randomShuffle' :: [a] -> StatePlusParams [a]
-randomShuffle' xs = do
+randomShuffle :: [a] -> StatePlusParams [a]
+randomShuffle xs = do
   s@NN{ randomGen=gen }  <- get
   let shuffled  = shuffle' xs (length xs) gen
       (gen', _) = split gen
@@ -176,17 +170,11 @@ randomShuffle' xs = do
   return shuffled
 
 randomElement :: [a] -> StatePlusParams a
-randomElement xs =
-  head <$> randomShuffle' xs
+randomElement xs = do
+  randomIndex :: Int <- randomNumber (0, length xs)
+  return $ xs !! randomIndex
+    where
     
-act :: StatePlusParams Action
-act = do
-  s@NN{ epsilon=eps }  <- get
-  rNumber <- randomNumber (0,1) :: StatePlusParams Double
-  if rNumber <= eps
-    then randomAction
-    else maxIndex <$> predict
-
 randomNumber :: (Random a) => (a, a) -> StatePlusParams a
 randomNumber (beg, end) = do
   s@NN{ randomGen=gen }  <- get
@@ -194,40 +182,47 @@ randomNumber (beg, end) = do
   put s{randomGen=gen'}
   return rNumber
 
+act :: StatePlusParams Action
+act = do
+  s@NN{ epsilon=eps }  <- get
+  (rNumber :: Double) <- randomNumber (0,1)
+  if rNumber <= eps
+    then randomAction
+    else maxIndex <$> predict
+
 randomAction :: StatePlusParams Action
 randomAction = do
   choices <- legalActions
-  head <$> randomSample' 1 choices
-
-legalActions :: StatePlusParams [Action]
-legalActions = do
-  s@NN{ input=input }  <- get
-  return $ find (==0) input
-
+  randomElement choices
+    where
+      legalActions = do
+        s@NN{ input=input }  <- get
+        return $ find (==0) input
+      
 predict :: StatePlusParams Output
-predict = undefined
+predict = assert False undefined
 
 remember :: BufferData -> State NeuralNetwork ()
-remember = undefined
+remember = assert False undefined
 
 initHyp :: HyperParameters
-initHyp = undefined
+initHyp = assert False undefined
 
 initNN :: Reader HyperParameters NeuralNetwork
-initNN = undefined
+initNN = assert False undefined
 
 forwardPropagation :: StatePlusParams ()
-forwardPropagation = undefined
+forwardPropagation = assert False undefined
 
 activator :: (Num a) => a -> a
-activator = undefined
+activator = assert False undefined
 
 target :: Reward -> Input -> Input -> StatePlusParams Output
-target = undefined
+target = assert False undefined
 
 fit :: Input -> output -> StatePlusParams ()
-fit = undefined
+fit = assert False undefined
 
 adam :: StatePlusParams ()
-adam = undefined
+adam = assert False undefined
 
