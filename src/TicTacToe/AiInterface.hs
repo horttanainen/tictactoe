@@ -1,4 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module TicTacToe.AiInterface where
 
@@ -9,7 +11,7 @@ import Control.Exception.Base (assert)
 import System.Random (StdGen, split, randomR, Random)
 import System.Random.Shuffle (shuffle')
 
-import Numeric.LinearAlgebra.Data
+import Numeric.LinearAlgebra
 
 import TicTacToe.Core (move, result)
 import TicTacToe.Domain (Result(..), Board, Move, CellPos)
@@ -91,20 +93,34 @@ unfinished m a = assert False undefined
 
 -- NN stuff
 
-type Input  = Matrix Z
+type Input  = Matrix R
 type W1     = Matrix R
 type W2     = Matrix R
 type Output = Matrix R
+type B1     = Matrix R
+type B2     = Matrix R
+type B3     = Matrix R
 
+type Hidden1  = Matrix R
+type Hidden2  = Matrix R
+type Scores   = Matrix R
 
 type Reward = Int
 
+type Activator = Matrix R -> Matrix R
+
 data NeuralNetwork = NN {
-  epsilon :: Double,
+  epsilon   :: Double,
   input     :: Input,
   w1        :: W1,
   w2        :: W2,
   output    :: Output,
+  b1        :: B1,
+  b2        :: B2,
+  b3        :: B3,
+  hidden1   :: Hidden1,
+  hidden2   :: Hidden2,
+  scores    :: Scores,
   buffer    :: [BufferData],
   adamS     :: AdamState,
   randomGen :: StdGen
@@ -133,7 +149,10 @@ data HyperParameters = Hyp {
   batchSize         :: Int,
   bufferSize        :: Int,
   stateSize         :: Int,
-  adamP             :: AdamParameters
+  adamP             :: AdamParameters,
+  w1Activator       :: Activator,
+  w2Activator       :: Activator,
+  outActivator      :: Activator
 }
 
 data BufferData = BufferD {
@@ -144,24 +163,31 @@ data BufferData = BufferD {
   done      :: Bool
 }
 
-type StatePlusParams = ReaderT HyperParameters (State NeuralNetwork)
+type Network' a = ReaderT HyperParameters (State NeuralNetwork) a
 
-replay ::  StatePlusParams ()
+newtype Network a = Network {
+  unNetwork :: Network' a
+} deriving (Monad, Applicative, Functor, MonadReader HyperParameters,
+  MonadState NeuralNetwork)
+
+replay ::  Network ()
 replay = do
-  Hyp{epsilonMin = epsMin, epsilonDecay = epsD, batchSize=bSize} <- ask
-  NN{ buffer=buffer } <- get
-  sample <- randomSample bSize buffer
+  epsMin  <- asks epsilonMin
+  epsD    <- asks epsilonDecay 
+  bSize   <- asks batchSize 
+  buffer  <- gets buffer
+  sample  <- randomSample bSize buffer
   forM_ sample (\(BufferD state action reward nextState done) -> do
       trgt <- target reward state nextState
       fit state trgt
       s@NN{epsilon = eps} <- get
       when (eps > epsMin) $ put s{epsilon = eps * epsD})
 
-randomSample :: Int -> [a] -> StatePlusParams [a]
+randomSample :: Int -> [a] -> Network [a]
 randomSample n xs =
   take n <$> randomShuffle xs
 
-randomShuffle :: [a] -> StatePlusParams [a]
+randomShuffle :: [a] -> Network [a]
 randomShuffle xs = do
   s@NN{ randomGen=gen }  <- get
   let shuffled  = shuffle' xs (length xs) gen
@@ -169,41 +195,72 @@ randomShuffle xs = do
   put s{ randomGen=gen' }
   return shuffled
 
-randomElement :: [a] -> StatePlusParams a
+randomElement :: [a] -> Network a
 randomElement xs = do
   randomIndex :: Int <- randomNumber (0, length xs)
   return $ xs !! randomIndex
-    where
     
-randomNumber :: (Random a) => (a, a) -> StatePlusParams a
+randomNumber :: (Random a) => (a, a) -> Network a
 randomNumber (beg, end) = do
   s@NN{ randomGen=gen }  <- get
   let (rNumber, gen') = randomR (beg, end) gen
   put s{randomGen=gen'}
   return rNumber
 
-act :: StatePlusParams Action
+act :: Network Action
 act = do
-  s@NN{ epsilon=eps }  <- get
+  eps <- gets epsilon
   (rNumber :: Double) <- randomNumber (0,1)
   if rNumber <= eps
     then randomAction
     else maxIndex <$> predict
 
-randomAction :: StatePlusParams Action
+randomAction :: Network Action
 randomAction = do
-  choices <- legalActions
-  randomElement choices
+  actions <- legalActions
+  randomElement actions
     where
+      legalActions :: Network [Action]
       legalActions = do
-        s@NN{ input=input }  <- get
+        input <- gets input
         return $ find (==0) input
-      
-predict :: StatePlusParams Output
-predict = assert False undefined
 
-remember :: BufferData -> State NeuralNetwork ()
-remember = assert False undefined
+predict :: Network Output
+predict = do
+  
+forwardPropagate :: Network ()
+forwardPropagate = do
+  input     <- gets input
+  w1        <- gets w1
+  w2        <- gets w2
+  output    <- gets output
+  b1        <- gets b1
+  b2        <- gets b2
+  b3        <- gets b3
+  w1Act     <- asks w1Activator
+  w2Act     <- asks w2Activator
+  outAct    <- asks outActivator
+  let hidden1 = w1Act $ add b1 $ w1 <> input
+  let hidden2 = w2Act $ add b2 $ w2 <> hidden1
+  let scores = (outAct $ add b3 $ output <> hidden2)
+
+linearActivator :: Activator
+linearActivator x = x
+
+reluActivator :: Activator
+reluActivator matrix =
+  fromLists $ map (map relu) rows
+    where
+      relu = max 0
+      rows = toLists matrix
+
+remember :: BufferData -> Network ()
+remember bData = do
+  s@NN{ buffer=buffer }   <- get
+  bSize                   <- asks bufferSize
+  if length buffer < bSize
+    then put s{ buffer = bData : buffer } 
+    else put s{ buffer = bData : init buffer }
 
 initHyp :: HyperParameters
 initHyp = assert False undefined
@@ -211,18 +268,15 @@ initHyp = assert False undefined
 initNN :: Reader HyperParameters NeuralNetwork
 initNN = assert False undefined
 
-forwardPropagation :: StatePlusParams ()
-forwardPropagation = assert False undefined
-
 activator :: (Num a) => a -> a
 activator = assert False undefined
 
-target :: Reward -> Input -> Input -> StatePlusParams Output
+target :: Reward -> Input -> Input -> Network Output
 target = assert False undefined
 
-fit :: Input -> output -> StatePlusParams ()
+fit :: Input -> output -> Network ()
 fit = assert False undefined
 
-adam :: StatePlusParams ()
+adam :: Network ()
 adam = assert False undefined
 
