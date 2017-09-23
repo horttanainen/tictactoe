@@ -111,6 +111,7 @@ type Reward = R
 type ActionIndex = Int
 
 type Activator = Vector R -> Vector R
+type Loss      = Vector R -> Vector R
 
 data Model = Model {
   w1        :: W1,
@@ -161,7 +162,8 @@ data HyperParameters = Hyp {
   adamP             :: AdamParameters,
   w1Activator       :: Activator,
   w2Activator       :: Activator,
-  outActivator      :: Activator
+  outActivator      :: Activator,
+  lossFunction      :: Loss
 }
 
 data BufferData = BufferD {
@@ -211,31 +213,16 @@ calcTarget (BufferD state action reward nextState done) = do
         in before ++ (value:after)
 
 fitModel :: Input -> Output -> Network ()
-fitModel = assert False undefined
-
-randomSample :: Int -> [a] -> Network [a]
-randomSample n xs =
-  take n <$> randomShuffle xs
-
-randomShuffle :: [a] -> Network [a]
-randomShuffle xs = do
-  s@NN{ randomGen=gen }  <- get
-  let shuffled  = shuffle' xs (length xs) gen
-      (gen', _) = split gen
-  put s{ randomGen=gen' }
-  return shuffled
-
-randomElement :: [a] -> Network a
-randomElement xs = do
-  randomIndex :: Int <- randomNumber (0, length xs)
-  return $ xs !! randomIndex
-    
-randomNumber :: (Random a) => (a, a) -> Network a
-randomNumber (beg, end) = do
-  s@NN{ randomGen=gen }  <- get
-  let (rNumber, gen') = randomR (beg, end) gen
-  put s{randomGen=gen'}
-  return rNumber
+fitModel state target = do
+  m@(Model w1 w2 w3 b1 b2 b3) <- gets model
+  w1Act <- asks w1Activator
+  w2Act <- asks w2Activator
+  outAct <- asks outActivator 
+  lossFunc <- asks lossFunction
+  let hidden1 = w1Act $ add b1 $ w1 #> input
+      hidden2 = w2Act $ add b2 $ w2 #> hidden1
+      scores = outAct $ add b3 $ w3 #> hidden2
+      loss = lossFunc scores
 
 act :: Network ActionIndex
 act = do
@@ -264,8 +251,19 @@ predict (Model w1 w2 w3 b1 b2 b3) input = do
   w2Act     <- asks w2Activator
   outAct    <- asks outActivator
   let hidden1 = w1Act $ add b1 $ w1 #> input
-  let hidden2 = w2Act $ add b2 $ w2 #> hidden1
+      hidden2 = w2Act $ add b2 $ w2 #> hidden1
   return (outAct $ add b3 $ w3 #> hidden2)
+
+remember :: BufferData -> Network ()
+remember bData = do
+  s@NN{ buffer=buffer }   <- get
+  bSize                   <- asks bufferSize
+  if length buffer < bSize
+    then put s{ buffer = bData : buffer } 
+    else put s{ buffer = bData : init buffer }
+
+adam :: Network ()
+adam = assert False undefined
 
 linearActivator :: Activator
 linearActivator x = x
@@ -276,20 +274,33 @@ reluActivator vec =
     where
       relu = max 0
 
-remember :: BufferData -> Network ()
-remember bData = do
-  s@NN{ buffer=buffer }   <- get
-  bSize                   <- asks bufferSize
-  if length buffer < bSize
-    then put s{ buffer = bData : buffer } 
-    else put s{ buffer = bData : init buffer }
-
 initHyp :: HyperParameters
 initHyp = assert False undefined
 
 initNN :: Reader HyperParameters NeuralNetwork
 initNN = assert False undefined
 
-adam :: Network ()
-adam = assert False undefined
+randomSample :: Int -> [a] -> Network [a]
+randomSample n xs =
+  take n <$> randomShuffle xs
+
+randomShuffle :: [a] -> Network [a]
+randomShuffle xs = do
+  s@NN{ randomGen=gen }  <- get
+  let shuffled  = shuffle' xs (length xs) gen
+      (gen', _) = split gen
+  put s{ randomGen=gen' }
+  return shuffled
+
+randomElement :: [a] -> Network a
+randomElement xs = do
+  randomIndex :: Int <- randomNumber (0, length xs)
+  return $ xs !! randomIndex
+    
+randomNumber :: (Random a) => (a, a) -> Network a
+randomNumber (beg, end) = do
+  s@NN{ randomGen=gen }  <- get
+  let (rNumber, gen') = randomR (beg, end) gen
+  put s{randomGen=gen'}
+  return rNumber
 
