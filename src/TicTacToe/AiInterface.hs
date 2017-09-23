@@ -5,7 +5,7 @@
 module TicTacToe.AiInterface where
 
 import Data.Maybe
-import Control.Monad.State
+import Control.Monad.State hiding (state)
 import Control.Monad.Reader
 import Control.Exception.Base (assert)
 import System.Random (StdGen, split, randomR, Random)
@@ -93,37 +93,46 @@ unfinished m a = assert False undefined
 
 -- NN stuff
 
-type Input  = Matrix R
+type Input  = Vector R
 type W1     = Matrix R
 type W2     = Matrix R
-type Output = Matrix R
-type B1     = Matrix R
-type B2     = Matrix R
-type B3     = Matrix R
+type W3     = Matrix R
+type Output = Vector R
+type B1     = Vector R
+type B2     = Vector R
+type B3     = Vector R
 
 type Hidden1  = Matrix R
 type Hidden2  = Matrix R
 type Scores   = Matrix R
 
-type Reward = Int
+type Reward = R
 
-type Activator = Matrix R -> Matrix R
+type ActionIndex = Int
 
-data NeuralNetwork = NN {
-  epsilon   :: Double,
-  input     :: Input,
+type Activator = Vector R -> Vector R
+
+data Model = Model {
   w1        :: W1,
   w2        :: W2,
-  output    :: Output,
+  w3        :: W3,
   b1        :: B1,
   b2        :: B2,
-  b3        :: B3,
-  hidden1   :: Hidden1,
-  hidden2   :: Hidden2,
-  scores    :: Scores,
-  buffer    :: [BufferData],
-  adamS     :: AdamState,
-  randomGen :: StdGen
+  b3        :: B3
+}
+
+newtype Target = Target {
+  unTarget :: Model
+}
+
+data NeuralNetwork = NN {
+  epsilon       :: Double,
+  model         :: Model,
+  targetModel   :: Target,
+  input         :: Input,
+  buffer        :: [BufferData],
+  adamS         :: AdamState,
+  randomGen     :: StdGen
 }
 
 data AdamParameters = AdamP {
@@ -157,7 +166,7 @@ data HyperParameters = Hyp {
 
 data BufferData = BufferD {
   state     :: Input,
-  action    :: Action,
+  action    :: ActionIndex,
   reward    :: Reward,
   nextState :: Input,
   done      :: Bool
@@ -170,18 +179,39 @@ newtype Network a = Network {
 } deriving (Monad, Applicative, Functor, MonadReader HyperParameters,
   MonadState NeuralNetwork)
 
-replay ::  Network ()
+replay :: Network ()
 replay = do
   epsMin  <- asks epsilonMin
   epsD    <- asks epsilonDecay 
   bSize   <- asks batchSize 
   buffer  <- gets buffer
   sample  <- randomSample bSize buffer
-  forM_ sample (\(BufferD state action reward nextState done) -> do
-      trgt <- target reward state nextState
-      fit state trgt
-      s@NN{epsilon = eps} <- get
-      when (eps > epsMin) $ put s{epsilon = eps * epsD})
+  forM_ sample (\bufferD -> do
+    target <- calcTarget bufferD
+    fitModel (state bufferD) target
+    s@NN{epsilon = eps} <- get
+    when (eps > epsMin) $ put s{epsilon = eps * epsD})
+        
+calcTarget :: BufferData -> Network Output
+calcTarget (BufferD state action reward nextState done) = do
+  model <- gets model
+  targetModel <- gets targetModel
+  gamma <- asks gamma
+  predCurRew <- predict model state
+  if done 
+    then
+      return $ fromList $ replace (toList predCurRew) action reward
+    else do
+      predFutRew <- predict model nextState
+      targetPredFutRew <- predict (unTarget targetModel) nextState
+      return $ fromList $ replace (toList predCurRew) action $ reward + gamma * targetPredFutRew ! maxIndex predFutRew
+    where
+      replace xs index value =
+        let (before, _:after) = splitAt (action - 1) xs
+        in before ++ (value:after)
+
+fitModel :: Input -> Output -> Network ()
+fitModel = assert False undefined
 
 randomSample :: Int -> [a] -> Network [a]
 randomSample n xs =
@@ -207,52 +237,44 @@ randomNumber (beg, end) = do
   put s{randomGen=gen'}
   return rNumber
 
-act :: Network Action
+act :: Network ActionIndex
 act = do
   eps <- gets epsilon
   (rNumber :: Double) <- randomNumber (0,1)
   if rNumber <= eps
     then randomAction
-    else maxIndex <$> predict
+    else do
+      model <- gets model
+      input <- gets input
+      maxIndex <$> predict model input
 
-randomAction :: Network Action
+randomAction :: Network ActionIndex
 randomAction = do
   actions <- legalActions
   randomElement actions
     where
-      legalActions :: Network [Action]
+      legalActions :: Network [ActionIndex]
       legalActions = do
         input <- gets input
         return $ find (==0) input
 
-predict :: Network Output
-predict = do
-  
-forwardPropagate :: Network ()
-forwardPropagate = do
-  input     <- gets input
-  w1        <- gets w1
-  w2        <- gets w2
-  output    <- gets output
-  b1        <- gets b1
-  b2        <- gets b2
-  b3        <- gets b3
+predict :: Model -> Input -> Network Output
+predict (Model w1 w2 w3 b1 b2 b3) input = do
   w1Act     <- asks w1Activator
   w2Act     <- asks w2Activator
   outAct    <- asks outActivator
-  let hidden1 = w1Act $ add b1 $ w1 <> input
-  let hidden2 = w2Act $ add b2 $ w2 <> hidden1
-  let scores = (outAct $ add b3 $ output <> hidden2)
+  let hidden1 = w1Act $ add b1 $ w1 #> input
+  let hidden2 = w2Act $ add b2 $ w2 #> hidden1
+  return (outAct $ add b3 $ w3 #> hidden2)
 
 linearActivator :: Activator
 linearActivator x = x
 
 reluActivator :: Activator
-reluActivator matrix =
-  fromLists $ map (map relu) rows
+reluActivator vec =
+  fromList $ map relu $ toList vec
     where
       relu = max 0
-      rows = toLists matrix
 
 remember :: BufferData -> Network ()
 remember bData = do
@@ -267,15 +289,6 @@ initHyp = assert False undefined
 
 initNN :: Reader HyperParameters NeuralNetwork
 initNN = assert False undefined
-
-activator :: (Num a) => a -> a
-activator = assert False undefined
-
-target :: Reward -> Input -> Input -> Network Output
-target = assert False undefined
-
-fit :: Input -> output -> Network ()
-fit = assert False undefined
 
 adam :: Network ()
 adam = assert False undefined
