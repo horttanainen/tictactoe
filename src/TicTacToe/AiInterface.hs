@@ -111,7 +111,7 @@ type Reward = R
 type ActionIndex = Int
 
 type Activator = Vector R -> Vector R
-type Loss      = Vector R -> Vector R
+type LossFunction = Vector R -> Vector R -> Vector R
 
 data Model = Model {
   w1        :: W1,
@@ -163,7 +163,7 @@ data HyperParameters = Hyp {
   w1Activator       :: Activator,
   w2Activator       :: Activator,
   outActivator      :: Activator,
-  lossFunction      :: Loss
+  lossFunction      :: LossFunction
 }
 
 data BufferData = BufferD {
@@ -219,10 +219,15 @@ fitModel state target = do
   w2Act <- asks w2Activator
   outAct <- asks outActivator 
   lossFunc <- asks lossFunction
-  let hidden1 = w1Act $ add b1 $ w1 #> input
+  let hidden1 = w1Act $ add b1 $ w1 #> state
       hidden2 = w2Act $ add b2 $ w2 #> hidden1
-      scores = outAct $ add b3 $ w3 #> hidden2
-      loss = lossFunc scores
+      prediction = outAct $ add b3 $ w3 #> hidden2
+      loss = lossFunc target prediction
+  return ()
+
+meanSquaredError :: Floating a => a -> a -> a
+meanSquaredError target prediction = 
+  0.5 * ((target - prediction)**2)
 
 act :: Network ActionIndex
 act = do
