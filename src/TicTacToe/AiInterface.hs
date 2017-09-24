@@ -223,6 +223,18 @@ fitModel state target = do
       hidden2 = w2Act $ add b2 $ w2 #> hidden1
       prediction = outAct $ add b3 $ w3 #> hidden2
       loss = lossFunc target prediction
+      g1 = w1 #> state + b1
+      g2 = w2 #> hidden1 + b2
+      dg3 = - (target - prediction)
+      dg2 = fromList ((\el -> if el <= 0 then 0 else 1) <$> toList g2) * dg3 <# w3
+      dg1 = fromList ((\el -> if el <= 0 then 0 else 1) <$> toList g1) * dg2 <# w2
+      dw3 = dg3 * hidden2
+      db3 = dg3
+      dw2 = dg2 * hidden1
+      db2 = dg2
+      dw1 = dg1 * state
+      db1 = dg1
+      
   return ()
 
 meanSquaredError :: Floating a => a -> a -> a
