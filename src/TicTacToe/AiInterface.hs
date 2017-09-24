@@ -104,7 +104,6 @@ type B3     = Vector R
 
 type Hidden1  = Matrix R
 type Hidden2  = Matrix R
-type Scores   = Matrix R
 
 type Reward = R
 
@@ -159,11 +158,7 @@ data HyperParameters = Hyp {
   batchSize         :: Int,
   bufferSize        :: Int,
   stateSize         :: Int,
-  adamP             :: AdamParameters,
-  w1Activator       :: Activator,
-  w2Activator       :: Activator,
-  outActivator      :: Activator,
-  lossFunction      :: LossFunction
+  adamP             :: AdamParameters
 }
 
 data BufferData = BufferD {
@@ -215,14 +210,10 @@ calcTarget (BufferD state action reward nextState done) = do
 fitModel :: Input -> Output -> Network ()
 fitModel state target = do
   m@(Model w1 w2 w3 b1 b2 b3) <- gets model
-  w1Act <- asks w1Activator
-  w2Act <- asks w2Activator
-  outAct <- asks outActivator 
-  lossFunc <- asks lossFunction
-  let hidden1 = w1Act $ add b1 $ w1 #> state
-      hidden2 = w2Act $ add b2 $ w2 #> hidden1
-      prediction = outAct $ add b3 $ w3 #> hidden2
-      loss = lossFunc target prediction
+  let hidden1 = relu $ add b1 $ w1 #> state
+      hidden2 = relu $ add b2 $ w2 #> hidden1
+      prediction = add b3 $ w3 #> hidden2
+      loss = meanSquaredError target prediction
       g1 = w1 #> state + b1
       g2 = w2 #> hidden1 + b2
       dg3 = - (target - prediction)
@@ -264,12 +255,9 @@ randomAction = do
 
 predict :: Model -> Input -> Network Output
 predict (Model w1 w2 w3 b1 b2 b3) input = do
-  w1Act     <- asks w1Activator
-  w2Act     <- asks w2Activator
-  outAct    <- asks outActivator
-  let hidden1 = w1Act $ add b1 $ w1 #> input
-      hidden2 = w2Act $ add b2 $ w2 #> hidden1
-  return (outAct $ add b3 $ w3 #> hidden2)
+  let hidden1 = relu $ add b1 $ w1 #> input
+      hidden2 = relu $ add b2 $ w2 #> hidden1
+  return (add b3 $ w3 #> hidden2)
 
 remember :: BufferData -> Network ()
 remember bData = do
@@ -282,11 +270,8 @@ remember bData = do
 adam :: Network ()
 adam = assert False undefined
 
-linearActivator :: Activator
-linearActivator x = x
-
-reluActivator :: Activator
-reluActivator vec =
+relu :: Activator
+relu vec =
   fromList $ map relu $ toList vec
     where
       relu = max 0
