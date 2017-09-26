@@ -125,38 +125,24 @@ newtype Target = Target {
 
 data NeuralNetwork = NN {
   epsilon       :: Double,
+  learningRate  :: Double,
   model         :: Model,
   targetModel   :: Target,
   input         :: Input,
   buffer        :: [BufferData],
-  adamS         :: AdamState,
+  adamIter      :: Int,
+  adamW1        :: AdamState,
+  adamW2        :: AdamState,
+  adamW3        :: AdamState,
+  adamB1        :: AdamState,
+  adamB2        :: AdamState,
+  adamB3        :: AdamState,
   randomGen     :: StdGen
 }
 
-data AdamParameters = AdamP {
-  eps       :: Double,
-  beta1     :: Double,
-  beta2     :: Double
-}
-
-data AdamState = Adam {
-  iteration :: Int,
-  mass      :: Double,
-  velocity  :: Double
-}
-
-data HyperParameters = Hyp {
-  player            :: Move,
-  epsilonDecay      :: Double,
-  epsilonMin        :: Double,
-  gamma             :: Double,
-  learningRate      :: Double,
-  learningRateDecay :: Double,
-  episodes          :: Int,
-  batchSize         :: Int,
-  bufferSize        :: Int,
-  stateSize         :: Int,
-  adamP             :: AdamParameters
+data AdamState = AdamState {
+  mass      :: Matrix R,
+  velocity  :: Matrix R
 }
 
 data BufferData = BufferD {
@@ -165,6 +151,25 @@ data BufferData = BufferD {
   reward    :: Reward,
   nextState :: Input,
   done      :: Bool
+}
+
+data HyperParameters = Hyp {
+  player            :: Move,
+  epsilonDecay      :: Double,
+  epsilonMin        :: Double,
+  gamma             :: Double,
+  learningRateDecay :: Double,
+  episodes          :: Int,
+  batchSize         :: Int,
+  bufferSize        :: Int,
+  stateSize         :: Int,
+  adamP             :: AdamParameters
+}
+
+data AdamParameters = AdamParameters {
+  eps       :: Double,
+  beta1     :: Double,
+  beta2     :: Double
 }
 
 type Network' a = ReaderT HyperParameters (State NeuralNetwork) a
@@ -183,7 +188,10 @@ replay = do
   sample  <- randomSample bSize buffer
   forM_ sample (\bufferD -> do
     target <- calcTarget bufferD
-    fitModel (state bufferD) target
+    model <- gets model
+    model' <- fitModel model (state bufferD) target
+    s <- get
+    put s{ model=model' }
     s@NN{epsilon = eps} <- get
     when (eps > epsMin) $ put s{epsilon = eps * epsD})
         
@@ -205,9 +213,8 @@ calcTarget (BufferD state action reward nextState done) = do
         let (before, _:after) = splitAt (action - 1) xs
         in before ++ (value:after)
 
-fitModel :: Input -> Output -> Network ()
-fitModel state target = do
-  m@(Model w1 w2 w3 b1 b2 b3) <- gets model
+fitModel :: Model -> Input -> Output -> Network Model
+fitModel m@(Model w1 w2 w3 b1 b2 b3) state target = do
   let state' = asColumn state -- [9x1]
       target' = asColumn target -- [9x1]
       hidden1 = relu $ b1 + (w1 <> state') -- [24x9] x [9x1] = [24x1]
@@ -225,10 +232,51 @@ fitModel state target = do
       db2 = tr' dg2 -- [24x1]
       dw1 = tr' dg1 <> tr' state' -- [24x1] x [1x9] = [24x9]
       db1 = tr' dg1 -- [24x1]
+      dm  = Model dw1 dw2 dw3 b1 b2 b3
       drelu g = fromLists $ map (map cutOff) $ toLists g 
       cutOff el = if el <= 0 then 0 else 1
-      
-  return ()
+  adam m dm
+
+adam :: Model -> Model -> Network Model
+adam (Model w1 w2 w3 b1 b2 b3) (Model dw1 dw2 dw3 db1 db2 db3) = do
+  adamP   <- asks adamP
+  t       <- gets adamIter
+  learningRate  <- gets learningRate
+  w1A <- gets adamW1
+  w2A <- gets adamW2
+  w3A <- gets adamW3
+  b1A <- gets adamB1
+  b2A <- gets adamB2
+  b3A <- gets adamB3
+  let (w1', w1A') = adam' w1 dw1 w1A adamP t learningRate
+      (w2', w2A') = adam' w2 dw2 w2A adamP t learningRate
+      (w3', w3A') = adam' w3 dw3 w3A adamP t learningRate
+      (b1', b1A') = adam' b1 db1 b1A adamP t learningRate
+      (b2', b2A') = adam' b2 db2 b2A adamP t learningRate
+      (b3', b3A') = adam' b3 db3 b3A adamP t learningRate
+      t'          = t + 1
+      model'      = Model w1 w2 w3 b1 b2 b3
+  state   <- get
+  put state{ 
+    adamW1  = w1A',
+    adamW2  = w2A',
+    adamW3  = w3A',
+    adamB1  = b1A',
+    adamB2  = b2A',
+    adamB3  = b3A',
+    adamIter  = t'
+    }
+  return model'
+
+adam' :: Matrix R -> Matrix R -> AdamState -> AdamParameters -> Int -> Double 
+  -> (Matrix R, AdamState)
+adam' x dx (AdamState m v) (AdamParameters eps beta1 beta2) t learningRate =
+  let m'  = scale beta1 m + scale (1 - beta1) dx
+      mt  = m' / scalar (1 - beta1^t)
+      v'  = scale beta2 v + scale (1 - beta2) (dx^2)
+      vt  = v' / scalar (1 - beta2^t)
+      x'  = x + scale (- learningRate) mt / (sqrtm vt + scalar eps)
+  in  (x', AdamState m' v')
 
 meanSquaredError :: Floating a => a -> a -> a
 meanSquaredError target prediction = 
@@ -269,9 +317,6 @@ remember bData = do
   if length buffer < bSize
     then put s{ buffer = bData : buffer } 
     else put s{ buffer = bData : init buffer }
-
-adam :: Network ()
-adam = assert False undefined
 
 relu :: Matrix R -> Matrix R
 relu m =
