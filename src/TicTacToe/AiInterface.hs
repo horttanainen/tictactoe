@@ -28,68 +28,68 @@ data GameState = GameState {
 type BoardMatrix = Matrix Z
 type Action = (Int, Int)
 
-step :: (Player a) => BoardMatrix -> Action -> a -> GameState
-step m action opponent =
-  case aiResult m action of
-    Error   -> err
-    Win     -> win
-    Draw    -> draw
-    _       -> opponentMoveToState (fromJust (aiMove m action)) opponent
-
-opponentMoveToState :: (Player a) => BoardMatrix -> a -> GameState
-opponentMoveToState m opponent =
-  let pAction = predictedAction m opponent
-  in
-    case aiResult m pAction of
-      Win         -> loss
-      Draw        -> draw
-      Unfinished  -> unfinished m pAction
-
-aiMove :: BoardMatrix -> Action -> Maybe BoardMatrix
-aiMove matrix action =
-  let board           = matrixToBoard matrix
-      (pl, cellPos)   = actionToPlayerCellPos action
-  in
-    case move board pl cellPos of
-      Just b  -> Just $ boardToMatrix b
-      _       -> Nothing
-
-aiResult :: BoardMatrix -> Action -> Result
-aiResult matrix action =
-  result board pl cellPos
-  where 
-    board           = matrixToBoard matrix
-    (pl, cellPos)   = actionToPlayerCellPos action
-
-actionToPlayerCellPos :: Action -> (Move, CellPos)
-actionToPlayerCellPos = assert False undefined
-
-matrixToBoard :: BoardMatrix -> Board
-matrixToBoard = assert False undefined
-
-boardToMatrix :: Board -> BoardMatrix
-boardToMatrix = assert False undefined
-
-matrixToState :: BoardMatrix -> GameState
-matrixToState = assert False undefined
-
-emptyGameState :: GameState
-emptyGameState = assert False undefined
-
-err :: GameState
-err = assert False undefined
-
-loss :: GameState
-loss = assert False undefined
-
-win :: GameState
-win = assert False undefined
-
-draw :: GameState
-draw = assert False undefined
-
-unfinished :: BoardMatrix -> Action -> GameState
-unfinished m a = assert False undefined
+--step :: (Player a) => BoardMatrix -> Action -> a -> GameState
+--step m action opponent =
+--  case aiResult m action of
+--    Error   -> err
+--    Win     -> win
+--    Draw    -> draw
+--    _       -> opponentMoveToState (fromJust (aiMove' m action)) opponent
+--
+--opponentMoveToState :: (Player a) => BoardMatrix -> a -> GameState
+--opponentMoveToState m opponent =
+--  let pAction = predictedAction m opponent
+--  in
+--    case aiResult m pAction of
+--      Win         -> loss
+--      Draw        -> draw
+--      Unfinished  -> unfinished m pAction
+--
+--aiMove' :: BoardMatrix -> Action -> Maybe BoardMatrix
+--aiMove' matrix action =
+--  let board           = matrixToBoard matrix
+--      (pl, cellPos)   = actionToPlayerCellPos action
+--  in
+--    case move board pl cellPos of
+--      Just b  -> Just $ boardToMatrix b
+--      _       -> Nothing
+--
+--aiResult :: BoardMatrix -> Action -> Result
+--aiResult matrix action =
+--  result board pl cellPos
+--  where 
+--    board           = matrixToBoard matrix
+--    (pl, cellPos)   = actionToPlayerCellPos action
+--
+--actionToPlayerCellPos :: Action -> (Move, CellPos)
+--actionToPlayerCellPos = assert False undefined
+--
+--matrixToBoard :: BoardMatrix -> Board
+--matrixToBoard = assert False undefined
+--
+--boardToMatrix :: Board -> BoardMatrix
+--boardToMatrix = assert False undefined
+--
+--matrixToState :: BoardMatrix -> GameState
+--matrixToState = assert False undefined
+--
+--emptyGameState :: GameState
+--emptyGameState = assert False undefined
+--
+--err :: GameState
+--err = assert False undefined
+--
+--loss :: GameState
+--loss = assert False undefined
+--
+--win :: GameState
+--win = assert False undefined
+--
+--draw :: GameState
+--draw = assert False undefined
+--
+--unfinished :: BoardMatrix -> Action -> GameState
+--unfinished m a = assert False undefined
 
 -- NN stuff
 
@@ -106,9 +106,6 @@ type Hidden2  = Matrix R
 type Reward = R
 
 type ActionIndex = Int
-
-type Activator = Vector R -> Vector R
-type LossFunction = Vector R -> Vector R -> Vector R
 
 data Model = Model {
   w1        :: W1,
@@ -163,7 +160,11 @@ data HyperParameters = Hyp {
   batchSize         :: Int,
   bufferSize        :: Int,
   stateSize         :: Int,
-  adamP             :: AdamParameters
+  adamP             :: AdamParameters,
+  winReward         :: Reward,
+  drawReward        :: Reward,
+  lossReward        :: Reward,
+  unfinishedReward  :: Reward
 }
 
 data AdamParameters = AdamParameters {
@@ -179,6 +180,52 @@ newtype Network a = Network {
 } deriving (Monad, Applicative, Functor, MonadReader HyperParameters,
   MonadState NeuralNetwork)
 
+learn1 :: Network ()
+learn1 = do
+  state <- gets input
+  actionIndex <- act state
+  (nextState, reward, done) <- aiMove actionIndex
+  return ()
+
+aiMove :: ActionIndex -> Network (Input, Reward, Bool)
+aiMove action = do
+  currentState <- gets input
+  let stateAfterAction = update currentState action
+  if (win stateAfterAction) then do
+      reward <- asks winReward
+      return (stateAfterAction, reward, True)
+    else do
+      opponentAction <- act $ reverseState $ stateAfterAction
+      let stateAfterOpponent = update stateAfterAction opponentAction
+      tmp stateAfterOpponent
+        where
+          tmp :: Input -> Network (Input, Reward, Bool)
+          tmp state 
+            | loss state  = do
+              reward <- asks lossReward
+              return (state, reward, True)
+            | draw state  = do
+              reward <- asks drawReward
+              return (state, reward, True)
+            | otherwise   = do
+              reward <- asks unfinishedReward
+              return (state, reward, False)
+
+update :: Input -> ActionIndex -> Input
+update = assert False undefined
+
+reverseState :: Input -> Input
+reverseState = assert False undefined
+          
+win :: Input -> Bool
+win = assert False undefined
+
+loss :: Input -> Bool
+loss = assert False undefined
+
+draw :: Input -> Bool
+draw = assert False undefined
+
 replay :: Network ()
 replay = do
   epsMin  <- asks epsilonMin
@@ -189,7 +236,7 @@ replay = do
   forM_ sample (\bufferD -> do
     target <- calcTarget bufferD
     model <- gets model
-    model' <- fitModel model (state bufferD) target
+    model' <- fit model (state bufferD) target
     s <- get
     put s{ model=model' }
     s@NN{epsilon = eps} <- get
@@ -201,8 +248,7 @@ calcTarget (BufferD state action reward nextState done) = do
   targetModel <- gets targetModel
   gamma <- asks gamma
   predCurRew <- predict model state
-  if done 
-    then
+  if done then
       return $ fromList $ replace (toList predCurRew) action reward
     else do
       predFutRew <- predict model nextState
@@ -210,11 +256,11 @@ calcTarget (BufferD state action reward nextState done) = do
       return $ fromList $ replace (toList predCurRew) action $ reward + gamma * targetPredFutRew ! maxIndex predFutRew
     where
       replace xs index value =
-        let (before, _:after) = splitAt (action - 1) xs
+        let (before, _:after) = splitAt (index - 1) xs
         in before ++ (value:after)
 
-fitModel :: Model -> Input -> Output -> Network Model
-fitModel m@(Model w1 w2 w3 b1 b2 b3) state target = do
+fit :: Model -> Input -> Output -> Network Model
+fit m@(Model w1 w2 w3 b1 b2 b3) state target = do
   let state' = asColumn state -- [9x1]
       target' = asColumn target -- [9x1]
       hidden1 = relu $ b1 + (w1 <> state') -- [24x9] x [9x1] = [24x1]
@@ -282,27 +328,20 @@ meanSquaredError :: Floating a => a -> a -> a
 meanSquaredError target prediction = 
   0.5 * ((target - prediction)**2)
 
-act :: Network ActionIndex
-act = do
+act :: Input -> Network ActionIndex
+act state = do
   eps <- gets epsilon
   (rNumber :: Double) <- randomNumber (0,1)
-  if rNumber <= eps
-    then randomAction
+  if rNumber <= eps then
+      randomElement $ possibleActions state
     else do
       model <- gets model
-      input <- gets input
-      maxIndex <$> predict model input
+      maxIndex <$> predict model state
 
-randomAction :: Network ActionIndex
-randomAction = do
-  actions <- legalActions
-  randomElement actions
-    where
-      legalActions :: Network [ActionIndex]
-      legalActions = do
-        input <- gets input
-        return $ find (==0) input
-
+possibleActions :: Input -> [ActionIndex]
+possibleActions =
+  find (\el -> el > (- 0.5) && el < 0.5)
+  
 predict :: Model -> Input -> Network Output
 predict (Model w1 w2 w3 b1 b2 b3) input = do
   let input' = asColumn input -- [9x1]
@@ -319,11 +358,8 @@ remember bData = do
     else put s{ buffer = bData : init buffer }
 
 relu :: Matrix R -> Matrix R
-relu m =
-  fromLists $ map (map relu) rows
-    where
-      rows = toLists m
-      relu = max 0
+relu =
+  fromLists . map (map (max 0)) . toLists
 
 initHyp :: HyperParameters
 initHyp = assert False undefined
